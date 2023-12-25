@@ -1,6 +1,6 @@
 # Decentralized Escrow Application
 
-This is an Escrow Dapp built with [Hardhat](https://hardhat.org/).
+This is an Escrow Dapp built with [Hardhat](https://hardhat.org/). It allows users to sale & purchase their Properties, Assets, with zero trust between them. This Application allows an Arbiter to disburse money, properties, & assets, between Purchaser/Beneficiary and Seller/Depositor semantically under a Consensus.
 
 ## Project Layout
 
@@ -23,4 +23,3 @@ Compile the contracts using `npx hardhat compile`. The artifacts will be placed 
 `cd` into the `/app` directory and run `npm install`
 
 To run the front-end application run `npm start` from the `/app` directory. Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
-

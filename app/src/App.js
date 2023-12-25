@@ -1,7 +1,7 @@
-import { ethers } from 'ethers';
-import { useEffect, useState } from 'react';
-import deploy from './deploy';
-import Escrow from './Escrow';
+import { ethers } from "ethers";
+import { useEffect, useState } from "react";
+import deploy, { getContract } from "./deploy";
+import Escrow from "./Escrow";
 
 const provider = new ethers.providers.Web3Provider(window.ethereum);
 
@@ -17,7 +17,7 @@ function App() {
 
   useEffect(() => {
     async function getAccounts() {
-      const accounts = await provider.send('eth_requestAccounts', []);
+      const accounts = await provider.send("eth_requestAccounts", []);
 
       setAccount(accounts[0]);
       setSigner(provider.getSigner());
@@ -26,31 +26,85 @@ function App() {
     getAccounts();
   }, [account]);
 
-  async function newContract() {
-    const beneficiary = document.getElementById('beneficiary').value;
-    const arbiter = document.getElementById('arbiter').value;
-    const value = ethers.BigNumber.from(document.getElementById('wei').value);
-    const escrowContract = await deploy(signer, arbiter, beneficiary, value);
+  useEffect(() => {
+    const escrowsHandler = async () => {
+      const allEscrows = JSON.parse(localStorage.getItem("escrows"));
+      if (allEscrows) {
+        const fetchedEscrows = allEscrows.map((escrow) => {
+          const escrowContract = getContract(signer, escrow.address);
 
+          return {
+            ...escrow,
+            handleApprove: async () => {
+              escrowContract.on("Approved", () => {
+                document.getElementById(escrowContract.address).parentElement.classList.add("list--escrow_complete");
+                document.getElementById(escrowContract.address).className = "complete";
+                document.getElementById(escrowContract.address).innerText = "✓";
+              });
 
-    const escrow = {
-      address: escrowContract.address,
-      arbiter,
-      beneficiary,
-      value: value.toString(),
-      handleApprove: async () => {
-        escrowContract.on('Approved', () => {
-          document.getElementById(escrowContract.address).className =
-            'complete';
-          document.getElementById(escrowContract.address).innerText =
-            "✓ It's been approved!";
+              try {
+                await approve(escrowContract, signer);
+              } catch (e) {
+                alert("Something went wrong, Check logs if you're a Dev!");
+                console.log("e: ", e);
+              }
+            },
+          };
         });
 
-        await approve(escrowContract, signer);
-      },
+        setEscrows(fetchedEscrows);
+      }
     };
 
-    setEscrows([...escrows, escrow]);
+    escrowsHandler();
+  }, [signer]);
+
+  async function newContract() {
+    try {
+      const beneficiary = document.getElementById("beneficiary").value;
+      const arbiter = document.getElementById("arbiter").value;
+
+      let val = document.getElementById("wei").value;
+      val = parseFloat(+val * 1e18);
+      if (parseInt(val.toString().split(".")[1]) >= 50) {
+        val = Math.ceil(val);
+      } else {
+        val = Math.floor(val);
+      }
+
+      const value = ethers.BigNumber.from(val.toString());
+      const escrowContract = await deploy(signer, arbiter, beneficiary, value);
+      document.getElementById("beneficiary").value = "";
+      document.getElementById("arbiter").value = "";
+      document.getElementById("wei").value = "";
+
+      const escrow = {
+        address: escrowContract.address,
+        arbiter,
+        beneficiary,
+        value: value.toString(),
+        handleApprove: async () => {
+          escrowContract.on("Approved", () => {
+            document.getElementById(escrowContract.address).parentElement.classList.add("list--escrow_complete");
+            document.getElementById(escrowContract.address).className = "complete";
+            document.getElementById(escrowContract.address).innerText = "✓";
+          });
+
+          try {
+            await approve(escrowContract, signer);
+          } catch (e) {
+            alert("Something went wrong, Check logs if you're a Dev!");
+            console.log("e: ", e);
+          }
+        },
+      };
+
+      localStorage.setItem("escrows", JSON.stringify([...escrows, escrow]));
+      setEscrows([...escrows, escrow]);
+    } catch (e) {
+      alert("Something wrong, Please check logs if you're a Dev!");
+      console.log("e:", e);
+    }
   }
 
   return (
@@ -68,8 +122,8 @@ function App() {
         </label>
 
         <label>
-          Deposit Amount (in Wei)
-          <input type="text" id="wei" />
+          Deposit Amount (in ETH)
+          <input type="number" id="wei" step={0.01} min={0.000000000000000001} />
         </label>
 
         <div
@@ -89,9 +143,13 @@ function App() {
         <h1> Existing Contracts </h1>
 
         <div id="container">
-          {escrows.map((escrow) => {
-            return <Escrow key={escrow.address} {...escrow} />;
-          })}
+          {escrows.length <= 0 ? (
+            <h1 className="no-contracts">No Contracts, Deploy First :)"</h1>
+          ) : (
+            escrows.map((escrow) => {
+              return <Escrow key={escrow.address} {...escrow} />;
+            })
+          )}
         </div>
       </div>
     </>
